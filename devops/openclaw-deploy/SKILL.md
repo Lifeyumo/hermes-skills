@@ -1,7 +1,7 @@
 ---
 name: openclaw-deploy
 description: OpenClaw 一键部署工作流 —— ssh 连接 → 换源(国内) → apt update → 安装 curl → screen 后台运行安装脚本 → 检测初始化进程
-triggers: ["/部署 OpenClaw"]
+triggers: ["/部署 OpenClaw 国内", "/部署 OpenClaw 国外"]
 vars:
   region: 国内|国外（从命令后缀提取）
   ip, port, user, pass, os_version: 用户依次提供
@@ -9,32 +9,20 @@ vars:
   screen_session: openclaw_install
 ---
 
-## 执行格式（用户口述版）
-触发: /部署 OpenClaw {国内|国外}
-收集: ip, port, user, pass, os_version
-sshpass 连接验证
-├─ 国内 → 写 sources.list (jammy) → apt update
-├─ 国外 → apt update
-└─ apt install -y curl
+## 收集（依次问）
+1. 服务器 IP
+2. 端口（默认 22）
+3. 用户名
+4. 密码
+5. 系统版本（默认 Ubuntu 22.04）
 
-screen -dmS openclaw_install bash -c \
-  'curl -fsSL https://openclaw.ai/install.sh | bash'
+## Step 1 — 连接验证
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "echo connected"
+→ 失败 → 输出 "连接失败: $ip:$port 用户:$user"，退出
 
-轮询 screen -ls + hardcopy 日志检测初始化完成
-超时 120s，间隔 5s
-
-完成 → "screen -r openclaw_install"
-
-## 完整流程
-
-### 1. 连接验证
-```bash
-sshpass -p '$pass' ssh $ssh_opts -p $port $user@$ip "echo connected"
-```
-
-### 2. 国内换源（Ubuntu jammy）
-```bash
-sshpass -p '$pass' ssh $ssh_opts -p $port $user@$ip "sudo bash -c 'cat > /etc/apt/sources.list << EOF
+## Step 2 — 国内换源 + 更新
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip \
+  "echo '$pass' | sudo -S bash -c 'cat > /etc/apt/sources.list << EOF
 deb http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
 deb-src http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
 deb http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse
@@ -46,38 +34,26 @@ deb-src http://mirrors.aliyun.com/ubuntu/ jammy-proposed main restricted univers
 deb http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
 deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
 EOF' && sudo apt update"
-```
+→ 失败 → 输出 "apt update 失败，报错:$error"，退出
 
-### 3. 国外只 apt update
-```bash
-sshpass -p '$pass' ssh $ssh_opts -p $port $user@$ip "sudo apt update"
-```
+## Step 3 — 国外直接更新
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "sudo apt update"
+→ 失败 → 输出 "apt update 失败，报错:$error"，退出
 
-### 4. 安装 curl
-```bash
-sshpass -p '$pass' ssh $ssh_opts -p $port $user@$ip "sudo apt install -y curl"
-```
+## Step 4 — 安装 curl
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "sudo apt install -y curl"
+→ 失败 → 输出 "curl 安装失败，报错:$error"，退出
 
-### 5. 后台运行安装脚本
-```bash
-sshpass -p '$pass' ssh $ssh_opts -p $port $user@$ip \
-  "screen -dmS $screen_session bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash; exec bash'"
-```
+## Step 5 — 启动安装脚本
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip \
+  "screen -dmS openclaw_install bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash; exec bash'"
+→ 失败 → 输出 "screen 启动失败，报错:$error"，退出
 
-### 6. 检测初始化进程
-```bash
-sshpass -p '$pass' ssh $ssh_opts -p $port $user@$ip \
-  "screen -ls; sleep 3; screen -S $screen_session -X hardcopy /tmp/openclaw_screen.log 2>/dev/null; cat /tmp/openclaw_screen.log 2>/dev/null | grep -iE 'openclaw|init|welcome|setup|enter|press|next' | head -20"
-```
-轮询间隔 5s，超时 120s。
+## Step 6 — 检测初始化进程
+轮询检测（间隔 5s，超时 120s）：
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "screen -ls | grep openclaw_install"
+- 存在 → 输出 "✅ OpenClaw 安装完成，可以开始接入配置了"
+- 超时 → 输出 "⚠ screen session 未检测到，请手动 screen -r openclaw_install 查看状态"
 
-### 7. 完成提示
-```
-✅ OpenClaw 安装完成，初始化界面已启动。
-screen -r openclaw_install
-```
-
-## 用户格式偏好
-- 执行结果只报状态：✅/❌ + 一句话
-- 不解释步骤，不输出过程描述
-- 出错立即退出，不自己发明方案
+## 原则
+报错即停，不自己发明方案
