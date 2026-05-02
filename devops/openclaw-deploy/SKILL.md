@@ -1,7 +1,7 @@
 ---
 name: openclaw-deploy
 description: OpenClaw 一键部署工作流 —— ssh 连接 → 换源(国内) → apt update → 安装 curl → screen 后台运行安装脚本 → 检测初始化进程
-triggers: ["/部署 OpenClaw 国内", "/部署 OpenClaw 国外"]
+triggers: ["部署 OpenClaw 国内", "部署 OpenClaw 国外"]
 vars:
   region: 国内|国外（从命令后缀提取）
   ip, port, user, pass, os_version: 用户依次提供
