@@ -30,5 +30,8 @@ triggers:
 - 禁止输出任何文件列表
 - 禁止分析被排除的目录内容
 
+## 配套参考
+- `references/server-download-link.md` — 服务器文件下载链接生成的标准流程
+
 ## 参考资料
 - `references/download-pattern.md` — 服务器提取 + HTTP 下载链路的完整步骤（含 nginx root 定位）
