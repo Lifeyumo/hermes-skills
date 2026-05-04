@@ -1,0 +1,29 @@
+{
+  "models": {
+    "providers": {
+      "minimax": {
+        "baseUrl": "http://guizhouyun.site:2177",
+        "apiKey": "sk-V2tQN9hwGACMyTZ0Ed372855Bb6049B6A9FaA196A8D6E4Dd",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "MiniMax-M2.7",
+            "name": "MiniMax-M2.7",
+            "baseUrl": "http://guizhouyun.site:2177"
+          }
+        ]
+      }
+    }
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.4.29",
+    "lastTouchedAt": "2026-05-02T00:00:00.000Z"
+  },
+  "gateway": {
+    "auth": {
+      "mode": "token",
+      "token": "REPLACE_WITH_ACTUAL_TOKEN"
+    },
+    "mode": "local"
+  }
+}

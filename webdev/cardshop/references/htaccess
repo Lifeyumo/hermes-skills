@@ -1,0 +1,26 @@
+# 禁用危险函数
+<IfModule mod_php7.c>
+    php_value disable_functions "exec,system,shell_exec,passthru,proc_open,popen,eval,assert,create_function,file_get_contents,file_put_contents"
+</IfModule>
+<IfModule mod_php.c>
+    php_value disable_functions "exec,system,shell_exec,passthru,proc_open,popen,eval,assert,create_function,file_get_contents,file_put_contents"
+</IfModule>
+
+# 禁止访问敏感文件
+<FilesMatch "\.(sql|log|env|htaccess|git|gitignore)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# 禁止访问隐藏目录
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule "\/\." - [F]
+</IfModule>
+
+# 安全头
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
