@@ -1,0 +1,18 @@
+[Unit]
+Description=SSH SOCKS5 proxy tunnel to Hong Kong
+After=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/usr/bin/autossh -M 0 \
+    -o "ServerAliveInterval 30" \
+    -o "ServerAliveCountMax 3" \
+    -o "StrictHostKeyChecking=no" \
+    -i /home/ubuntu/.ssh/hermes_proxy_key \
+    -D 1080 -N root@代理出口IP
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

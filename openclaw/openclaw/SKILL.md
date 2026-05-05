@@ -180,3 +180,230 @@ Load this skill when the user mentions openclaw, clawbot, wecom, 企业微信, Q
 ## References
 
 - [clawbot-weixin.md](references/clawbot-weixin.md) — Clawbot/微信平台配置详情
+
+---
+
+## 一键部署工作流（Deploy）
+
+> SSH 连接 → 换源（国内）→ apt update → 安装 curl → screen 后台运行安装脚本 → 检测初始化进程
+
+### 收集（依次问）
+
+1. 服务器 IP
+2. 端口（默认 22）
+3. 用户名
+4. 密码
+5. 系统版本（默认 Ubuntu 22.04）
+
+### Step 1 — 连接验证
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "echo connected"
+```
+→ 失败 → 输出 "连接失败: $ip:$port 用户:$user"，退出
+
+### Step 2 — 国内换源 + 更新
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip \
+  "echo '$pass' | sudo -S bash -c 'cat > /etc/apt/sources.list << EOF
+deb http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ jammy-proposed main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ jammy-proposed main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
+deb-src http://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse
+EOF' && sudo apt update"
+```
+→ 失败 → 输出 "apt update 失败，报错:$error"，退出
+
+### Step 3 — 国外直接更新
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "sudo apt update"
+```
+→ 失败 → 输出 "apt update 失败，报错:$error"，退出
+
+### Step 4 — 安装 curl
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "sudo apt install -y curl"
+```
+→ 失败 → 输出 "curl 安装失败，报错:$error"，退出
+
+### Step 5 — 启动安装脚本
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip \
+  "screen -dmS openclaw_install bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash; exec bash'"
+```
+→ 失败 → 输出 "screen 启动失败，报错:$error"，退出
+
+### Step 6 — 检测初始化进程
+
+轮询检测（间隔 5s，超时 120s）：
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "screen -ls | grep openclaw_install"
+```
+- 存在 → 输出 "✅ OpenClaw 安装完成，可以开始接入配置了"
+- 超时 → 输出 "⚠ screen session 未检测到，请手动 screen -r openclaw_install 查看状态"
+
+### Step 7 — 定位安装路径
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "which openclaw || find /home -name openclaw -type f 2>/dev/null | head -3"
+```
+确认 openclaw 路径（通常是 `~/.npm-global/bin/openclaw`）
+
+### Step 8 — 写入 API 配置
+
+**方式A（推荐）**：整写完整配置文件
+```bash
+# 备份原配置
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "test -f ~/.openclaw/openclaw.json && cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak"
+# 写入完整配置
+scp references/openclaw-full-config.json $user@$ip:~/.openclaw/openclaw.json
+```
+
+**方式B**：增量 patch
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "openclaw config patch --file - << 'EOF'
+{
+  models: {
+    providers: {
+      minimax: {
+        baseUrl: 'http://guizhouyun.site:2177',
+        apiKey: 'sk-V2tQN9hwGACMyTZ0Ed372855Bb6049B6A9FaA196A8D6E4Dd',
+        api: 'openai-completions',
+        models: [
+          {
+            id: 'MiniMax-M2.7',
+            name: 'MiniMax-M2.7',
+            baseUrl: 'http://guizhouyun.site:2177'
+          }
+        ]
+      }
+    }
+  }
+}
+EOF"
+```
+→ 失败 → 检查 config 是否存在: `ls ~/.openclaw/`
+
+### Step 9 — 安装 Gateway systemd service
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "openclaw gateway install"
+```
+→ 失败 → 输出 "gateway install 失败，报错:$error"，退出
+
+### Step 10 — 修复 gateway.mode（关键）
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip "openclaw config set gateway.mode local"
+```
+→ 必须，否则 gateway 启动失败（报错: existing config is missing gateway.mode）
+
+### Step 11 — 启动 gateway service
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip \
+  "systemctl --user daemon-reload && systemctl --user enable --now openclaw-gateway.service"
+```
+→ 失败 → 检查 journalctl: `systemctl --user status openclaw-gateway.service`
+
+### Step 12 — 验证
+
+```bash
+sshpass -p '$pass' ssh -o StrictHostKeyChecking=no -p $port $user@$ip \
+  "sleep 5 && systemctl --user status openclaw-gateway.service 2>&1 | head -10"
+```
+- active (running) → ✅ 完成
+- failed → 检查日志: `journalctl --user -u openclaw-gateway.service -n 20`
+
+### 关键路径备忘
+
+- openclaw 路径: `~/.npm-global/bin/openclaw`
+- openclaw 配置: `~/.openclaw/openclaw.json`
+- gateway service: `~/.config/systemd/user/openclaw-gateway.service`
+- gateway 端口: 18789
+- systemd 控制: `systemctl --user start/restart/status openclaw-gateway.service`
+- API 验证: `curl -X POST '<baseURL>/v1/chat/completions' -H 'Authorization: Bearer <key>' -H 'Content-Type: application/json' -d '{"model":"<model>","messages":[{"role":"user","content":"hi"}],"max_tokens":10}'`
+
+### 已知坑（Deploy）
+
+1. **gateway.mode 缺失**: 安装后首次启动必失败，必须先 `openclaw config set gateway.mode local`
+2. **systemd 需要 user session**: 用 `systemctl --user`（不是 `sudo systemctl`）
+3. **host key 变化**: 服务器重装后需 `ssh-keygen -R <ip>` 清除旧记录
+4. **完整配置重写优于 patch**: patch 可能遗漏根级字段，推荐完整配置文件 scp 覆盖
+5. **重启 Gateway 验证**: 光改配置不重启不生效
+6. **微信插件安装屏幕捕获**: screen 会话内二维码是 ASCII 乱码，用 `screen -S <session> -X hardcopy /tmp/qr.txt` 捕获，再 grep 提取链接
+7. **微信二维码链接有时效**: 链接几分钟内有效，过期则 pkill 重启插件安装会话再拿新链接
+
+### 部署完整配置模板
+
+`references/openclaw-full-config.md` — 完整配置参考（含 gateway.mode、models.providers 正确结构）
+
+### 微信插件安装屏幕捕获（补充）
+
+`screen -X hardcopy` 捕获的屏幕内容是ASCII艺术二维码，正确提取链接：
+```bash
+screen -S weixin_install -X hardcopy /tmp/qr.txt
+cat /tmp/qr.txt | grep -E 'liteapp.weixin.qq.com|qrcode=' | tail -1
+```
+链接在 `qrcode=` 后面就是可访问的绑定链接。
+
+### 配置文件无效字段（必知）
+
+**禁止包含以下字段**，写入会导致 `openclaw plugins install` 报错 "Invalid config" 并拒绝加载：
+- ❌ `wizard` — 顶级字段，已废弃
+- ❌ `auth.profiles.<profile>:apiKey` — 应放在 `models.providers.<provider>:apiKey` 层
+- ❌ `auth.profiles.<profile>:mode` — 部分版本不支持
+
+**正确放置 apiKey 的位置**：
+```json5
+{
+  "models": {
+    "providers": {
+      "deepseek": {
+        "apiKey": "sk-xxx",  // ← API Key 在这里
+        "baseUrl": "https://api.deepseek.com",
+        "api": "openai-completions"
+      }
+    }
+  }
+}
+```
+
+**若已写入无效字段，修复方法**：
+```python
+cfg.pop('wizard', None)
+if 'auth' in cfg and 'profiles' in cfg['auth']:
+    for k in cfg['auth']['profiles']:
+        cfg['auth']['profiles'][k].pop('apiKey', None)
+```
+
+### 服务器优先级（必知）
+
+- **"服务器"默认指本地（103.118.245.190）**，不是外部服务器
+- 外部服务器需用全名/IP区分：McTextHub（47.109.71.3）、AAOOAAOOAA（175.178.122.111）
+
+### 本地服务器微信接入架构
+
+```
+企业微信 → OpenClaw (Node.js) → Hermes Gateway (port 8642) → AI 模型
+```
+
+**OpenClaw** 负责消息协议转换（微信协议 ↔ Hermes ACP 协议）。
+**Hermes Gateway** 负责 AI 对话，监听 8642 端口，接收 OpenClaw 转发。
+
+关键配置：
+- OpenClaw 的 `gateway.token` 必须与 Hermes 配置一致
+- Hermes 的 `weixin.enabled: true` + `weixin.port: 8642` 开启微信通道
+- `WEIXIN_HOME_CHANNEL` 是微信端 channel 标识
+
+> 注意：本架构下 OpenClaw 和 Hermes 是**独立运行的两个进程**，通过 HTTP 内部通信。

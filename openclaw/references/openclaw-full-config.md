@@ -1,68 +1,37 @@
-# OpenClaw 完整配置文件模板
+# OpenClaw 完整配置模板
 
-## 最小可用配置（DeepSeek 示例）
+## 标准完整配置
 
-```json
+复制到 `~/.openclaw/openclaw.json` 后替换 `REPLACE_WITH_ACTUAL_TOKEN`。
+
+```json5
 {
-  "agents": {
-    "defaults": {
-      "workspace": "/home/ubuntu/.openclaw/workspace",
-      "model": {
-        "primary": "deepseek/deepseek-v4-flash"
-      }
-    }
-  },
-  "gateway": {
-    "mode": "local",
-    "auth": {
-      "mode": "password",
-      "token": "REPLACE_WITH_TOKEN",
-      "password": "REPLACE_WITH_PASSWORD"
-    },
-    "port": 18789,
-    "bind": "lan",
-    "tailscale": {
-      "mode": "off"
-    },
-    "controlUi": {
-      "enabled": false,
-      "allowInsecureAuth": false
-    }
-  },
-  "plugins": {
-    "entries": {
-      "deepseek": {
-        "enabled": true
-      }
-    }
+  "meta": {
+    "version": "1.0.0"
   },
   "models": {
-    "mode": "merge",
     "providers": {
-      "deepseek": {
-        "baseUrl": "https://api.deepseek.com",
-        "apiKey": "REPLACE_WITH_API_KEY",
+      "minimax": {
+        "apiKey": "REPLACE_WITH_ACTUAL_KEY",
+        "baseUrl": "https://api.minimax.chat",
         "api": "openai-completions",
         "models": [
           {
-            "id": "deepseek-v4-flash",
-            "name": "DeepSeek V4 Flash",
-            "reasoning": true,
-            "contextWindow": 1000000,
-            "maxTokens": 384000,
-            "input": ["text"],
-            "cost": {
-              "input": 0.14,
-              "output": 0.28,
-              "cacheRead": 0.028,
-              "cacheWrite": 0
-            },
-            "compat": {
-              "supportsReasoningEffort": true,
-              "supportsUsageInStreaming": true,
-              "maxTokensField": "max_tokens"
-            },
-            "api": "openai-completions"
+            "id": "MiniMax-M2.7",
+            "name": "MiniMax-M2.7",
+            "baseUrl": "https://api.minimax.chat"
+          }
+        ]
+      },
+      "deepseek": {
+        "apiKey": "REPLACE_WITH_ACTUAL_KEY",
+        "baseUrl": "https://api.deepseek.com",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "deepseek-chat",
+            "name": "DeepSeek Chat",
+            "baseUrl": "https://api.deepseek.com"
           }
         ]
       }
@@ -70,53 +39,71 @@
   },
   "auth": {
     "profiles": {
+      "minimax:default": {
+        "provider": "minimax",
+        "mode": "api_key"
+      },
       "deepseek:default": {
         "provider": "deepseek",
         "mode": "api_key"
       }
     }
   },
-  "hooks": {
-    "internal": {
-      "enabled": true,
-      "entries": {
-        "boot-md": { "enabled": true },
-        "bootstrap-extra-files": { "enabled": true },
-        "command-logger": { "enabled": true },
-        "session-memory": { "enabled": true }
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "REPLACE_WITH_ACTUAL_TOKEN"
+    },
+    "bind": "lan"
+  },
+  "channels": {
+    "wecom": {
+      "enabled": false
+    }
+  }
+}
+```
+
+## 关键字段说明
+
+| 字段 | 必须 | 说明 |
+|------|------|------|
+| `gateway.mode` | ✅ | 必须是 `"local"`，否则启动失败 |
+| `gateway.auth.token` | ✅ | 随机 token，用于 QR pairing |
+| `gateway.auth.mode` | ✅ | 必须是 `"token"` |
+| `gateway.bind` | 推荐 | `"lan"` 允许非本机连接 |
+| `models.providers.*.apiKey` | ✅ | API Key 必须放在这里 |
+| `auth.profiles.*:apiKey` | ❌ | 禁止放在这里，会导致插件安装失败 |
+| `wizard` | ❌ | 禁止存在，已废弃 |
+
+## AAOOAAOOAA 服务器实际配置
+
+AAOOAAOOAA（175.178.122.111）的实际运行配置：
+
+```json5
+{
+  "models": {
+    "providers": {
+      "deepseek": {
+        "apiKey": "sk-...（已更新）",
+        "baseUrl": "https://api.deepseek.com",
+        "api": "openai-completions"
       }
     }
   },
-  "meta": {
-    "lastTouchedVersion": "2026.4.29",
-    "lastTouchedAt": "2026-05-02T00:00:00.000Z"
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "（已配置）"
+    },
+    "bind": "lan"
+  },
+  "controlUi": {
+    "enabled": false
   }
 }
 ```
 
-## 禁用控制台 UI 的关键字段
-
-```json
-"controlUi": {
-  "enabled": false,
-  "allowInsecureAuth": false
-}
-```
-
-## 微信插件额外配置
-
-```json
-"channels": {
-  "openclaw-weixin": {
-    "channelConfigUpdatedAt": "2026-05-02T00:00:00.000Z"
-  }
-}
-```
-
-## 禁止出现的字段（2026.4.29 不支持）
-
-| 字段 | 位置 | 原因 |
-|------|------|------|
-| `wizard` | 顶级 | 已废弃 |
-| `wizard.enabled` | 顶级 | 同上 |
-| `auth.profiles.*.apiKey` | auth.profiles.<profile> | 应放在 models.providers.<provider>.apiKey |
+> 注意：`controlUi.enabled = false` 用于防止 gateway 页面不断刷新的死循环问题。
