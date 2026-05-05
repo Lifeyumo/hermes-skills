@@ -30,6 +30,7 @@ hermes/                  # Hermes Agent 专属
 openclaw/                # OpenClaw 接入
 webdev/                  # Web 开发专属
 system/                  # 系统工具专属
+bugs/                    # Bug 踩坑总结（问题描述、原因、解决方案）
 workflows/               # 独立工作流（跨领域通用）
 ...（内置 skill 目录保留不动）
 ```
@@ -85,9 +86,42 @@ workflows/               # 独立工作流（跨领域通用）
 |-------|------|
 | safe-deep-delete | 安全深度删除：超大目录/文件的极速无遍历删除 |
 
+## 七、bugs/ — Bug 踩坑总结
+
+**说明**：记录真实遇到的问题、原因分析、解决方案，供复盘和后续参考。
+
+| Bug | 描述 |
+|-----|------|
+| deepseek-tool-calls-error | DeepSeek-V4-Flash 回复 tool_calls 后 Agent 未响应工具结果，导致 400 错误 |
+
+### 规范
+
+每个 bug 记录必须包含三要素：
+
+1. **问题描述**：什么情况下出错，错误信息是什么
+2. **问题原因**：根因分析（模型 Bug / 配置错误 / 版本不兼容等）
+3. **解决方案**：临时/永久修复方案
+
+文件名命名：`<简短标识>-<日期>.md`，如 `deepseek-tool-calls-error-20260504.md`
+
+### 模板
+
+```markdown
+---
+name: <bug标识>
+date: <发现日期>
+status: open|resolved|workaround
+tags: [deepseek, model-bug, ...]
 ---
 
-## 七、workflows/ — 独立工作流
+## 问题描述
+
+## 原因分析
+
+## 解决方案
+```
+
+## 八、workflows/ — 独立工作流
 
 **说明**：跨领域通用工作流，不属于以上任意 Skill 分类时放入这里。
 
@@ -129,7 +163,7 @@ workflows/               # 独立工作流（跨领域通用）
 
 ---
 
-## 八、内置 Skill 目录（系统自带，不修改）
+## 九、内置 Skill 目录（系统自带，不修改）
 
 ```
 apple/                      # macOS 专用
@@ -249,4 +283,4 @@ type: add | fix | refactor | docs | delete
 
 | 日期 | 添加者 | 变更内容 |
 |--------|--------|---------|
-| 2026-05-04 | 小砚 | 初始构建：重构目录结构，制定分类规范 |
+| 2026-05-04 | 小砚 | 初始构建：重构目录结构，制定分类规范 | 我不是gay |
